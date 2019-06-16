@@ -1,0 +1,7 @@
+[package]
+name = "junit2md"
+version = "0.1.0"
+authors = ["Oleg Chernovskiy <adonai@xaker.ru>"]
+edition = "2018"
+
+[dependencies]
