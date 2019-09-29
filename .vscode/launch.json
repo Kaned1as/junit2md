@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Cargo launch",
+            "sourceLanguages": ["rust"],
+            "cargo": {
+                "args": [
+                    "build"
+                ]
+            },
+            "program": "${cargo:program}",
+            "args": ["test-samples/TEST-ru.raiffeisen.cnp.accountbln.AccountBlnTest.xml"]
+        },
+        {
+            "type": "gdb",
+            "request": "launch",
+            "gdbpath": "rust-gdb",
+            "name": "Raw program launch",
+            "target": "${workspaceRoot}/target/debug/junit2md",
+            "cwd": "${workspaceRoot}",
+            "arguments": "test-samples/TEST-ru.raiffeisen.cnp.accountbln.AccountBlnTest.xml"
+        }
+    ]
+}
