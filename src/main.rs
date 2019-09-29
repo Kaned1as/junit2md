@@ -75,30 +75,70 @@ fn suite_to_md(suite: TestSuite) -> String {
 }
 
 fn add_testcases(md: &mut String, tests: Vec<TestCase>) {
+    let mut table: Vec<Vec<Box<dyn Display>>> = vec![];
+    table.push(vec![
+        Box::new("Testcase name"),
+        Box::new("Status"), 
+        Box::new("Time"),
+        Box::new("Cause"),
+    ]);
+
+    let non_applicable = String::from("N/A");
+    let non_specified = String::from("Not specified");
     for test in tests {
         let test_time = test.time.unwrap_or_default();
 
         if !test.errors.is_empty() {
             // this is a test with error
+            let error_message = test.errors[0].message.as_ref().unwrap_or(&non_applicable);
+            let first_error_line = error_message.lines().next().unwrap().to_owned();
+            table.push(vec![
+                Box::new(test.name),
+                Box::new("‼"), 
+                Box::new(test_time),
+                Box::new(first_error_line)
+            ]);
             continue;
         }
 
         if !test.failures.is_empty() {
             // this is a test with failure
+            let failure_message = test.failures[0].message.as_ref().unwrap_or(&non_applicable);
+            let first_failure_line = failure_message.lines().next().unwrap().to_owned();
+            table.push(vec![
+                Box::new(test.name),
+                Box::new("✗"), 
+                Box::new(test_time),
+                Box::new(first_failure_line),
+            ]);
             continue;
         }
 
         if let Some(skipped_desc) = test.skipped {
             // this is a skipped test
+            let skip_message = skipped_desc.message.as_ref().unwrap_or(&non_specified);
+            let first_skip_line = skip_message.lines().next().unwrap().to_owned();
+            table.push(vec![
+                Box::new(test.name),
+                Box::new("✗"), 
+                Box::new(test_time),
+                Box::new(first_skip_line),
+            ]);
             continue;
         }
 
         if let Some(outputs) = test.outputs {
             // this is a successful test
+            table.push(vec![
+                Box::new(test.name),
+                Box::new("✓"), 
+                Box::new(test_time),
+                Box::new(non_applicable.to_owned()),
+            ]);
             continue;
         }
     }
-    
+    create_md_table(md, table);
 }
 
 fn add_totals(md: &mut String, suite: &TestSuite) {
