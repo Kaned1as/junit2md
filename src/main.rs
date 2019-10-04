@@ -1,7 +1,7 @@
-pub mod model;
+mod model;
+mod md;
 
 use std::fs;
-use std::cmp;
 use std::fmt::Display;
 
 use clap::{Arg, App};
@@ -9,6 +9,7 @@ use serde_xml_rs::from_reader;
 use serde_xml_rs::Error as XmlError;
 
 use model::*;
+use md::*;
 
 fn main() {
     let cli_args = App::new("JUnit 2 Markdown converter")
@@ -63,18 +64,45 @@ fn main() {
 fn suite_to_md(suite: TestSuite) -> String {
     let mut md = String::new();
 
-    md.push_str(&suite.name);
-    md.push('\n');
-    md.push_str(&"=".repeat(suite.name.chars().count()));
-    md.push('\n');
-
-    add_totals(&mut md, &suite);
-    add_testcases(&mut md, suite.testcases);
+    create_h1(&mut md, &suite.name);
+    add_suite_properties(&mut md, &suite);
+    add_totals_singular(&mut md, &suite);
+    add_testcases_summary(&mut md, &suite);
+    add_testcases_fail_details(&mut md, &suite);
 
     return md;
 }
 
-fn add_testcases(md: &mut String, tests: Vec<TestCase>) {
+fn add_suite_properties(md: &mut String, suite: &TestSuite) {
+    if suite.timestamp.is_some() && suite.hostname.is_some() && suite.time.is_some() {
+        md.push('\n');
+        md.push_str(&format!("Testset was started on host {hostname} at {timestamp} and took {time} seconds to finish.", 
+            hostname=suite.hostname.as_ref().unwrap(), 
+            timestamp=suite.timestamp.as_ref().unwrap(), 
+            time=suite.time.as_ref().unwrap())
+        );
+        md.push('\n');
+    }
+
+    if suite.properties.is_none() {
+        return;
+    }
+    
+    md.push('\n');
+    md.push_str("Properties:");
+
+    let desc = suite.properties.as_ref().unwrap();
+    for prop in &desc.properties {
+        md.push('\n');
+        md.push_str(&format!("* {name}: {value}", name=prop.name, value=prop.value));
+    }
+    md.push('\n');
+}
+
+fn add_testcases_summary(md: &mut String, suite: &TestSuite) {
+    create_h2(md, "Breakdown by testcases");
+
+    let tests = &suite.testcases;
     let mut table: Vec<Vec<Box<dyn Display>>> = vec![];
     table.push(vec![
         Box::new("Testcase name"),
@@ -85,19 +113,21 @@ fn add_testcases(md: &mut String, tests: Vec<TestCase>) {
 
     let non_applicable = String::from("N/A");
     let non_specified = String::from("Not specified");
+    let mut fail_index = 0;
     for test in tests {
-        let test_time = test.time.unwrap_or_default();
+        let test_time = test.time.to_owned().unwrap_or_default();
 
         if !test.errors.is_empty() {
             // this is a test with error
             let error_message = test.errors[0].message.as_ref().unwrap_or(&non_applicable);
             let first_error_line = error_message.lines().next().unwrap().to_owned();
             table.push(vec![
-                Box::new(test.name),
+                Box::new(test.name.to_owned()),
                 Box::new("‼"), 
                 Box::new(test_time),
-                Box::new(first_error_line)
+                Box::new(format!("[[{0}]](#c-{0})", fail_index))
             ]);
+            fail_index += 1;
             continue;
         }
 
@@ -106,39 +136,93 @@ fn add_testcases(md: &mut String, tests: Vec<TestCase>) {
             let failure_message = test.failures[0].message.as_ref().unwrap_or(&non_applicable);
             let first_failure_line = failure_message.lines().next().unwrap().to_owned();
             table.push(vec![
-                Box::new(test.name),
+                Box::new(test.name.to_owned()),
                 Box::new("✗"), 
                 Box::new(test_time),
-                Box::new(first_failure_line),
+                Box::new(format!("[[{0}]](#c-{0})", fail_index))
             ]);
+            fail_index += 1;
             continue;
         }
 
-        if let Some(skipped_desc) = test.skipped {
+        if let Some(skipped_desc) = &test.skipped {
             // this is a skipped test
             let skip_message = skipped_desc.message.as_ref().unwrap_or(&non_specified);
             let first_skip_line = skip_message.lines().next().unwrap().to_owned();
             table.push(vec![
-                Box::new(test.name),
-                Box::new("✗"), 
+                Box::new(test.name.to_owned()),
+                Box::new("✂"), 
                 Box::new(test_time),
-                Box::new(first_skip_line),
+                Box::new(format!("[[{0}]](#cause-{0})", fail_index))
             ]);
+            fail_index += 1;
             continue;
         }
 
-        if let Some(outputs) = test.outputs {
-            // this is a successful test
-            table.push(vec![
-                Box::new(test.name),
-                Box::new("✓"), 
-                Box::new(test_time),
-                Box::new(non_applicable.to_owned()),
-            ]);
-            continue;
-        }
+        // this is a successful test
+        table.push(vec![
+            Box::new(test.name.to_owned()),
+            Box::new("✓"), 
+            Box::new(test_time),
+            Box::new(""),
+        ]);
+        continue;
     }
     create_md_table(md, table);
+}
+
+fn add_totals_singular(md: &mut String, suite: &TestSuite) {
+    create_h2(md, "Overall status");
+
+    let mut table: Vec<Vec<Box<dyn Display>>> = vec![];
+    table.push(vec![
+        Box::new("Type"),
+        Box::new("Number of tests"),
+        Box::new("% of total")
+    ]);
+
+    let skipped_tests = suite.skipped.unwrap_or(0);
+    table.push(vec![
+        Box::new("Skipped"),
+        Box::new(skipped_tests),
+        Box::new(skipped_tests * 100 / suite.tests)
+    ]);
+
+    let disabled_tests = suite.disabled.unwrap_or(0);
+    table.push(vec![
+        Box::new("Disabled"),
+        Box::new(disabled_tests),
+        Box::new(disabled_tests * 100 / suite.tests)
+    ]);
+
+    let failed_tests = suite.failures.unwrap_or(0) + suite.errors.unwrap_or(0);
+    table.push(vec![
+        Box::new("Failed"),
+        Box::new(failed_tests),
+        Box::new(failed_tests * 100 / suite.tests)
+    ]);
+
+    let success_tests = suite.tests - failed_tests - disabled_tests - skipped_tests;
+    table.push(vec![
+        Box::new("*Successful*"),
+        Box::new(success_tests),
+        Box::new(success_tests * 100 / suite.tests)
+    ]);
+
+    create_md_table(md, table);
+}
+
+fn add_testcases_fail_details(md: &mut String, suite: &TestSuite) {
+    let tests = &suite.testcases;
+
+    // no failures to report
+    if !tests.iter().any(|test| test.skipped.is_some() || !test.failures.is_empty() || !test.errors.is_empty()) {
+        return;
+    }
+
+    create_h2(md, "Failures");
+    for test in tests {
+    }
 }
 
 fn add_totals(md: &mut String, suite: &TestSuite) {
@@ -164,94 +248,4 @@ fn add_totals(md: &mut String, suite: &TestSuite) {
         Box::new(suite.tests)
     ];
     create_md_table(md, vec![table_headers, table_row]);
-}
-
-fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>) {
-    if rows.len() < 2 {
-        // we need at least one header row and one value row
-        return;
-    }
-
-    // first, detect column width for each row
-    let column_count = rows[0].len();
-    let mut column_widths = vec![3; column_count];
-
-    // detect max column width
-    for row in rows.iter() {
-        for index in 0..column_count {
-            // from regular rows
-            if let Some(cell) = row.get(index) {
-                let text = cell.to_string();
-                column_widths[index] = cmp::max(column_widths[index], text.len());
-            }
-        }
-    }
-    
-    if let Some((headers, data)) = rows.split_first() {
-        // make headers
-        md.push('|');
-        for index in 0..column_count {
-            let header_name = headers[index].to_string();
-            md.push_str(&pad_cell_text(&header_name, column_widths[index]));
-            md.push('|');
-        }
-        md.push('\n');
-
-        // make header-divider row
-        md.push('|');
-        for index in 0..column_count {
-            let width = column_widths[index];
-            md.push_str(&"-".repeat(width));
-            md.push('|');
-        }
-        md.push('\n');
-
-        for row in data.iter() {
-            md.push('|');
-            for index in 0..column_count {
-                let cell_text = row[index].to_string();
-                let padded_cell_text = pad_cell_text(&cell_text, column_widths[index]);
-                md.push_str(&padded_cell_text);
-                md.push('|');
-            }
-            md.push('\n');
-        }
-        md.push('\n');
-    }
-}
-
-/// Pads cell text from right and left so it looks centered inside the table cell
-/// 
-/// `column_width` - precomputed column width to compute padding length from
-fn pad_cell_text(content: &str, column_width: usize) -> String {
-    let mut result = String::new();
-    if content.len() > 0 {
-        // have header at specified position
-        // compute difference between width and text length
-        let len_diff = column_width - content.chars().count();
-        if len_diff > 0 {
-            // should pad
-            if len_diff > 1 {
-                // should pad from both sides
-                let pad_len = len_diff / 2;
-                let remainder = len_diff % 2;
-                result.push_str(&" ".repeat(pad_len));
-                result.push_str(&content);
-                result.push_str(&" ".repeat(pad_len + remainder));
-            } else {
-                // it's just one space, add at the end
-                result.push_str(&content);
-                result.push(' ');
-            }
-        } else {
-            // shouldn't pad, text fills whole cell
-            result.push_str(&content);
-        }
-    } else {
-        // no text in this cell, fill cell with spaces
-        let pad_len = column_width;
-        result.push_str(&" ".repeat(pad_len));
-    }
-
-    return result;
 }

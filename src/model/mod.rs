@@ -26,7 +26,7 @@ pub struct TestSuite {
     pub properties: Option<TestProperties>,
 
     #[serde(flatten)]
-    pub outputs: Option<TestOutputs>,
+    pub outputs: TestOutputs,
 
     /// Test cases that this test suite consists of
     #[serde(rename = "testcase", default)]
