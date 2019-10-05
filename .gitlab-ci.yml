@@ -4,23 +4,35 @@ variables:
   GIT_SUBMODULE_STRATEGY: "recursive"
 
 stages:
-  - linux build
+  - build
+  - release
 
 
-build on default image:
+build default:
   image: rust
-  stage: linux build
+  stage: build
   dependencies: []
-  before_script: &common_compile_debian
-    - apt-get update -qq && apt-get install -y -qq binutils
+  before_script:
     - export CARGO_HOME="${PWD}/.cargo_cache"
-  script: &common_script
+  script:
     - cargo build --release
-  after_script:
-    - strip target/release/junit2md
-  artifacts: &common_artifacts
+  cache:
     paths:
-      - target/release/junit2md
+      - .cargo_cache/
+
+release static:
+  image: rust
+  stage: release
+  dependencies: []
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq musl-dev musl-tools
+    - rustup target add x86_64-unknown-linux-musl
+    - export CARGO_HOME="${PWD}/.cargo_cache"
+  script:
+    - cargo build --release --target=x86_64-unknown-linux-musl
+  artifacts:
+    paths:
+      - target/x86_64-unknown-linux-musl/release/junit2md
   cache:
     paths:
       - .cargo_cache/
