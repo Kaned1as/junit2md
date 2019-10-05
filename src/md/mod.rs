@@ -10,12 +10,34 @@ pub(super) fn create_h2(md: &mut String, title: &str) {
     create_header(md, "-", title);
 }
 
+pub(super) fn create_h3(md: &mut String, title: &str) {
+    md.push('\n');
+    md.push_str(&format!("### {} ###", title));
+    md.push('\n');
+}
+
 fn create_header(md: &mut String, underline: &str, title: &str) {
     md.push('\n');
     md.push_str(title);
     md.push('\n');
     md.push_str(&underline.repeat(title.chars().count()));
     md.push('\n');
+}
+
+pub(super) fn create_code_detail(md: &mut String, summary: &str, code: &str) {
+    md.push_str("<details>\n");
+    md.push_str(&format!("    <summary>{}</summary>\n", summary));
+    md.push_str("\n");
+    md.push_str(&tabulate(&code, "    "));
+    md.push_str("\n");
+    md.push_str("</details>\n");
+    md.push('\n');
+}
+
+fn tabulate(input: &str, to_prepend: &str) -> String {
+    let mut result = input.to_owned();
+    result.insert_str(0, to_prepend); // insert at the beginning
+    return result.replace('\n', &format!("\n{}", to_prepend)); // insert after each newline
 }
 
 pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>) {

@@ -1,8 +1,12 @@
 mod model;
 mod md;
+mod lang_specific;
 
 use std::fs;
 use std::fmt::Display;
+
+use core::sync::atomic::AtomicBool;
+use core::sync::atomic::Ordering;
 
 use clap::{Arg, App};
 use serde_xml_rs::from_reader;
@@ -11,53 +15,62 @@ use serde_xml_rs::Error as XmlError;
 use model::*;
 use md::*;
 
+static IS_VERBOSE: AtomicBool = AtomicBool::new(false);
+
 fn main() {
     let cli_args = App::new("JUnit 2 Markdown converter")
                         .version("0.1.0")
                         .author("Oleg `Kanedias` Chernovskiy <kanedias@keemail.me>")
                         .about("Generates Markdown text from JUnit XML report")
-                        .arg(Arg::with_name("INPUT")
+                        .arg(Arg::with_name("input-files")
+                                .multiple(true)
                                 .required(true)
-                                .help("Input JUnit XML to generate Markdown from"))
+                                .help("Input JUnit XML(s) to generate Markdown from. \
+                                       Generates verbose report in case there's single file. \
+                                       Generates brief report in case there are multiple files or it's an aggregated report."))
                         .arg(Arg::with_name("verbose")
                                 .short("v")
                                 .required(false)
                                 .help("Verbose output (hostnames, properties, standard streams)"))
                         .get_matches();
 
-    let junit_file = cli_args.value_of("INPUT").unwrap();
-    let junit_content = fs::read_to_string(junit_file).expect("Can't read JUnit file");
+    IS_VERBOSE.store(cli_args.is_present("verbose"), Ordering::Relaxed);
+
+    let mut junit_files = cli_args.values_of("input-files").unwrap();
 
     // Unfortunately, serde-xml-rs doesn't fully support enum
     // decoding (or maybe I couldn't get it to work).
     // Once it does, the following code should be rewritten
     // as enum JunitReport { Single(TestSuite), Multiple(TestSuiteSet) }
 
-    // Most test-cases are singular, those JUnit produces as TEST-full.class.name.xml
-    let singular: Result<TestSuite, XmlError> = from_reader(junit_content.as_bytes());
-    if singular.is_ok() {
-        let md = suite_to_md(singular.unwrap());
-        println!("{}", md);
-        //println!("{:#?}", singular.unwrap());
-        return;
-    } else {
-        eprintln!("Couldn't parse JUnit XML as singular: {}", singular.unwrap_err());
-    }
-
-    // Multiple test-cases are more common in Jenkins aggregated reports
-    let mult: Result<JunitReport, XmlError> = from_reader(junit_content.as_bytes());
-    if mult.is_ok() {
-        let mult = mult.unwrap();
-        if mult.testsuites.len() == 0 {
-            // it got parsed to empty mult XML, this probably means it was just non-proper
-            // singular test suite. Just return so the only thing user sees is singular error
-            return;
+    if junit_files.len() == 1 {
+        // it's a single file, let's try deserializing into aggregated report first
+        let junit_content = fs::read_to_string(junit_files.next().unwrap()).expect("Can't read JUnit file");
+        let mult: Result<JunitReport, XmlError> = from_reader(junit_content.as_bytes());
+        if let Some(mult) = mult.ok() {
+            if mult.testsuites.len() != 0 {
+                // that's real mult testcase, report it
+                println!("{:#?}", mult);
+                return;
+            }
         }
 
-        // that's real mult testcase, parse it
-        println!("{:#?}", mult);
-    } else {
-        eprintln!("Couldn't parse JUnit XML as mult: {}", mult.unwrap_err());
+        // not an aggregated report, deserialize into singular
+        let singular: Result<TestSuite, XmlError> = from_reader(junit_content.as_bytes());
+        if singular.is_ok() {
+            // that's real singular testcase, report it
+            let md = suite_to_md(singular.unwrap());
+            println!("{}", md);
+            return;
+        } else {
+            eprintln!("Couldn't parse JUnit XML as singular: {}", singular.unwrap_err());
+            return;
+        }
+    }
+
+    // there are multiple files, report them as aggregated
+    for junit_file in junit_files {
+
     }
 }
 
@@ -73,7 +86,12 @@ fn suite_to_md(suite: TestSuite) -> String {
     return md;
 }
 
+
 fn add_suite_properties(md: &mut String, suite: &TestSuite) {
+    if !IS_VERBOSE.load(Ordering::Relaxed) {
+        return;
+    }
+
     if suite.timestamp.is_some() && suite.hostname.is_some() && suite.time.is_some() {
         md.push('\n');
         md.push_str(&format!("Testset was started on host {hostname} at {timestamp} and took {time} seconds to finish.", 
@@ -111,16 +129,12 @@ fn add_testcases_summary(md: &mut String, suite: &TestSuite) {
         Box::new("Cause"),
     ]);
 
-    let non_applicable = String::from("N/A");
-    let non_specified = String::from("Not specified");
     let mut fail_index = 0;
     for test in tests {
         let test_time = test.time.to_owned().unwrap_or_default();
 
         if !test.errors.is_empty() {
             // this is a test with error
-            let error_message = test.errors[0].message.as_ref().unwrap_or(&non_applicable);
-            let first_error_line = error_message.lines().next().unwrap().to_owned();
             table.push(vec![
                 Box::new(test.name.to_owned()),
                 Box::new("‼"), 
@@ -133,8 +147,6 @@ fn add_testcases_summary(md: &mut String, suite: &TestSuite) {
 
         if !test.failures.is_empty() {
             // this is a test with failure
-            let failure_message = test.failures[0].message.as_ref().unwrap_or(&non_applicable);
-            let first_failure_line = failure_message.lines().next().unwrap().to_owned();
             table.push(vec![
                 Box::new(test.name.to_owned()),
                 Box::new("✗"), 
@@ -145,15 +157,13 @@ fn add_testcases_summary(md: &mut String, suite: &TestSuite) {
             continue;
         }
 
-        if let Some(skipped_desc) = &test.skipped {
+        if test.skipped.is_some() {
             // this is a skipped test
-            let skip_message = skipped_desc.message.as_ref().unwrap_or(&non_specified);
-            let first_skip_line = skip_message.lines().next().unwrap().to_owned();
             table.push(vec![
                 Box::new(test.name.to_owned()),
                 Box::new("✂"), 
                 Box::new(test_time),
-                Box::new(format!("[[{0}]](#cause-{0})", fail_index))
+                Box::new(format!("[[{0}]](#c-{0})", fail_index))
             ]);
             fail_index += 1;
             continue;
@@ -166,7 +176,6 @@ fn add_testcases_summary(md: &mut String, suite: &TestSuite) {
             Box::new(test_time),
             Box::new(""),
         ]);
-        continue;
     }
     create_md_table(md, table);
 }
@@ -221,7 +230,69 @@ fn add_testcases_fail_details(md: &mut String, suite: &TestSuite) {
     }
 
     create_h2(md, "Failures");
+
+    let mut fail_index = 0;
+    let not_specified = String::from("Not specified");
     for test in tests {
+
+        if !test.errors.is_empty() {
+            let error = &test.errors[0];
+
+            // this is a test with error
+            create_h3(md, &test.name);
+
+
+            let error_message = error.message.as_ref().unwrap_or(&not_specified);
+            md.push_str(&format!("<a id=\"c-{}\"/>  ", fail_index));
+            md.push_str(&format!("Error reason: {}  \n", error_message));
+            report_negative_result(md, test, error);
+            fail_index += 1;
+            continue;
+        }
+
+        if !test.failures.is_empty() {
+            let failure = &test.failures[0];
+
+            // this is a test with failure
+            create_h3(md, &test.name);
+
+            let failure_message = failure.message.as_ref().unwrap_or(&not_specified);
+            md.push_str(&format!("<a id=\"c-{}\"/>  ", fail_index));
+            md.push_str(&format!("Fail reason: {}  \n", failure_message));
+            report_negative_result(md, test, failure);
+            fail_index += 1;
+            continue;
+        }
+
+        if let Some(skipped_desc) = &test.skipped {
+            // this is a skipped test
+            create_h3(md, &test.name);
+
+            let skip_message = skipped_desc.message.as_ref().unwrap_or(&not_specified);
+            md.push_str(&format!("<a id=\"c-{}\"/>  ", fail_index));
+            md.push_str(&format!("Skip reason: {}  \n", skip_message));
+            report_negative_result(md, test, skipped_desc);
+            fail_index += 1;
+            continue;
+        }
+    }
+}
+
+fn report_negative_result(md: &mut String, test: &TestCase, result: &TestNegativeResult) {
+    if let Some(body) = &result.body {
+        create_code_detail(md, "Click to show details", &body);
+    }
+
+    if !IS_VERBOSE.load(Ordering::Relaxed) {
+        return;
+    }
+
+    if let Some(out) = &test.outputs.system_out {
+        create_code_detail(md, "Click to show test stdout", &out);
+    }
+
+    if let Some(err) = &test.outputs.system_err {
+        create_code_detail(md, "Click to show test stderr", &err);
     }
 }
 

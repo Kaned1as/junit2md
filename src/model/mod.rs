@@ -63,7 +63,7 @@ pub struct TestCase {
     pub status: Option<String>,
 
     #[serde(flatten)]
-    pub outputs: Option<TestOutputs>,
+    pub outputs: TestOutputs,
 
     pub skipped: Option<TestNegativeResult>,
 
