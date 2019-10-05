@@ -22,24 +22,17 @@ pub struct TestSuite {
     pub timestamp: Option<String>,
     pub hostname: Option<String>,
 
+    #[serde(rename = "system-out")]
+    pub system_out: Option<String>,
+    #[serde(rename = "system-err")]
+    pub system_err: Option<String>,
+
     /// Properties of a certain test suite, common for all tests inside
     pub properties: Option<TestProperties>,
-
-    #[serde(flatten)]
-    pub outputs: TestOutputs,
 
     /// Test cases that this test suite consists of
     #[serde(rename = "testcase", default)]
     pub testcases: Vec<TestCase>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TestOutputs {
-    #[serde(rename = "system-out", default)]
-    pub system_out: Option<String>,
-
-    #[serde(rename = "system-err", default)]
-    pub system_err: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,8 +55,11 @@ pub struct TestCase {
     pub classname: Option<String>,
     pub status: Option<String>,
 
-    #[serde(flatten)]
-    pub outputs: TestOutputs,
+
+    #[serde(rename = "system-out")]
+    pub system_out: Option<String>,
+    #[serde(rename = "system-err")]
+    pub system_err: Option<String>,
 
     pub skipped: Option<TestNegativeResult>,
 

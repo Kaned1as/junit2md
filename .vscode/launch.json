@@ -7,7 +7,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Cargo launch",
+            "name": "Run on single report",
             "sourceLanguages": ["rust"],
             "cargo": {
                 "args": [
@@ -15,16 +15,20 @@
                 ]
             },
             "program": "${cargo:program}",
-            "args": ["test-samples/TEST-ru.raiffeisen.cnp.accountbln.AccountBlnTest.xml"]
+            "args": ["test-samples/TEST-Pixel_3-UNIT.xml"]
         },
         {
-            "type": "gdb",
+            "type": "lldb",
             "request": "launch",
-            "gdbpath": "rust-gdb",
-            "name": "Raw program launch",
-            "target": "${workspaceRoot}/target/debug/junit2md",
-            "cwd": "${workspaceRoot}",
-            "arguments": "test-samples/TEST-ru.raiffeisen.cnp.accountbln.AccountBlnTest.xml"
+            "name": "Run on multiple reports",
+            "sourceLanguages": ["rust"],
+            "cargo": {
+                "args": [
+                    "build"
+                ]
+            },
+            "program": "${cargo:program}",
+            "args": ["java-tests/TEST-net.idrnd.voicesdk.aed.AedEngineInvalidWavTest.xml"]
         }
     ]
 }

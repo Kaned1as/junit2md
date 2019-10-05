@@ -40,7 +40,7 @@ fn tabulate(input: &str, to_prepend: &str) -> String {
     return result.replace('\n', &format!("\n{}", to_prepend)); // insert after each newline
 }
 
-pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>) {
+pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>, align_left_first_column: bool) {
     if rows.len() < 2 {
         // we need at least one header row and one value row
         return;
@@ -66,7 +66,7 @@ pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>)
         md.push('|');
         for index in 0..column_count {
             let header_name = headers[index].to_string();
-            md.push_str(&pad_cell_text(&header_name, column_widths[index]));
+            md.push_str(&pad_cell_text(&header_name, column_widths[index], true));
             md.push('|');
         }
         md.push('\n');
@@ -84,8 +84,14 @@ pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>)
             md.push('|');
             for index in 0..column_count {
                 let cell_text = row[index].to_string();
-                let padded_cell_text = pad_cell_text(&cell_text, column_widths[index]);
-                md.push_str(&padded_cell_text);
+                if align_left_first_column && index == 0 {
+                    let padded_right_text = pad_cell_text(&cell_text, column_widths[index], false);
+                    md.push_str(&padded_right_text);
+                } else {
+                    let padded_text = pad_cell_text(&cell_text, column_widths[index], true);
+                    md.push_str(&padded_text);
+                }
+                
                 md.push('|');
             }
             md.push('\n');
@@ -94,10 +100,7 @@ pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>)
     }
 }
 
-/// Pads cell text from right and left so it looks centered inside the table cell
-/// 
-/// `column_width` - precomputed column width to compute padding length from
-pub(super) fn pad_cell_text(content: &str, column_width: usize) -> String {
+pub(super) fn pad_cell_text(content: &str, column_width: usize, align_center: bool) -> String {
     let mut result = String::new();
     if content.len() > 0 {
         // have header at specified position
@@ -105,6 +108,12 @@ pub(super) fn pad_cell_text(content: &str, column_width: usize) -> String {
         let len_diff = column_width - content.chars().count();
         if len_diff > 0 {
             // should pad
+            if !align_center {
+                result.push_str(&content);
+                result.push_str(&" ".repeat(len_diff));
+                return result;
+            }
+
             if len_diff > 1 {
                 // should pad from both sides
                 let pad_len = len_diff / 2;
