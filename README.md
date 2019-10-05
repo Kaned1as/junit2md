@@ -1,3 +1,7 @@
+[![build status](https://gitlab.com/Kanedias/junit2md/badges/master/build.svg)](https://gitlab.com/Kanedias/junit2md/commits/master)
+[![License](https://img.shields.io/aur/license/marcfs-git.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![Universal binary](https://img.shields.io/badge/Universal-ELF-brightgreen.svg)](https://gitlab.com/Kanedias/junit2md/-/jobs/artifacts/master/download?job=release+static)
+
 JUNIT2MD
 =========
 
