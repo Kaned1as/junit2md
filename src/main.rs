@@ -88,6 +88,11 @@ fn main() {
     println!("{}", md);
 }
 
+/// Converts multiple suites to markdown, consuming them. 
+/// Only prints totals for each test suite and only reports failed test cases in the overview.
+/// 
+/// Arguments:
+/// * `suites` - test suites to report.
 fn suites_to_md_mult(suites: Vec<TestSuite>) -> String {
     let mut md = String::new();
 
@@ -105,6 +110,11 @@ fn suites_to_md_mult(suites: Vec<TestSuite>) -> String {
     return md;
 }
 
+/// Converts single suite to markdown, consuming it. 
+/// Prints totals for the suite, status for every test case and reports failed tests in overview.
+/// 
+/// Arguments:
+/// * `suite` - test suite to report
 fn suite_to_md_single(suite: TestSuite) -> String {
     let mut md = String::new();
 
@@ -117,6 +127,12 @@ fn suite_to_md_single(suite: TestSuite) -> String {
     return md;
 }
 
+/// Adds suite properties section to the report.
+/// There can be lots of them so it only does so if `IS_VERBOSE` flag is set.
+/// 
+/// Arguments:
+/// * `md` - the report to add properties section to.
+/// * `suite` - test suite to get properties from.
 fn add_suite_properties(md: &mut String, suite: &TestSuite) {
     if !IS_VERBOSE.load(Ordering::Relaxed) {
         // not needed in verbose mode, bail out
@@ -149,6 +165,12 @@ fn add_suite_properties(md: &mut String, suite: &TestSuite) {
     md.push('\n');
 }
 
+/// Adds summary table for testcases.
+/// Each test is reported and failing tests have a link to see their details.
+/// 
+/// Arguments:
+/// * `md` - the report to add testcase summary section to.
+/// * `suite` - test suite to get tests.
 fn add_testcases_summary(md: &mut String, suite: &TestSuite) {
     create_h2(md, "Breakdown by testcases");
 
@@ -214,6 +236,12 @@ fn add_testcases_summary(md: &mut String, suite: &TestSuite) {
     create_md_table(md, table, true);
 }
 
+/// Adds summary table for a single testsuite.
+/// Number of tests for each result is reported.
+/// 
+/// Arguments:
+/// * `md` - the report to add testcase summary section to.
+/// * `suite` - test suite to get tests.
 fn add_totals_singular(md: &mut String, suite: &TestSuite) {
     create_h2(md, "Overall status");
 
@@ -255,6 +283,12 @@ fn add_totals_singular(md: &mut String, suite: &TestSuite) {
     create_md_table(md, table, false);
 }
 
+/// Adds details for failed testcases.
+/// Each testcase is reported along with its output and content of failure.
+/// 
+/// Arguments:
+/// * `md` - the report to add testcase summary section to.
+/// * `tests` - tests that should be reported. Successful ones are skipped.
 fn add_testcases_fail_details(md: &mut String, tests: &Vec<TestCase>) {
     // no failures to report
     if !tests.iter().any(|test| test.skipped.is_some() || !test.failures.is_empty() || !test.errors.is_empty()) {
@@ -292,6 +326,15 @@ fn add_testcases_fail_details(md: &mut String, tests: &Vec<TestCase>) {
     }
 }
 
+/// Helper function that formats a failure result in a human-readable way.
+/// Basically it wraps long content in stdout/stderr and failure bodies into spoilers
+/// that can be expanded by user.
+/// 
+/// Arguments:
+/// * `md` - the report to add testcase summary section to.
+/// * `fail_index` - index of anchor to use. Testcase tables may be referring to this.
+/// * `test` - testcase to report.
+/// * `result` - negative result to report.
 fn report_negative_result(md: &mut String, fail_index: usize, test: &TestCase, result: &TestNegativeResult) {
     let not_specified = String::from("Not specified");
 
@@ -325,6 +368,12 @@ fn report_negative_result(md: &mut String, fail_index: usize, test: &TestCase, r
     }
 }
 
+/// Adds summary table for multiple testsuites.
+/// Only numbers of successful/failed/total tests are reported.
+/// 
+/// Arguments:
+/// * `md` - the report to add testcase summary section to.
+/// * `suites` - test suites to get info from.
 fn add_totals_multiple(md: &mut String, suites: &Vec<TestSuite>) {
     md.push('\n');
 

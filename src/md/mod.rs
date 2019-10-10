@@ -2,20 +2,24 @@
 use std::cmp;
 use std::fmt::Display;
 
+/// Creates main header in Markdown
 pub(super) fn create_h1(md: &mut String, title: &str) {
     create_header(md, "=", title);
 }
 
+/// Creates secondary header in Markdown
 pub(super) fn create_h2(md: &mut String, title: &str) {
     create_header(md, "-", title);
 }
 
+/// Creates auxiliary header in Markdown
 pub(super) fn create_h3(md: &mut String, title: &str) {
     md.push('\n');
     md.push_str(&format!("### {} ###", title));
     md.push('\n');
 }
 
+/// Helper function to create different types of headers
 fn create_header(md: &mut String, underline: &str, title: &str) {
     md.push('\n');
     md.push_str(title);
@@ -24,6 +28,7 @@ fn create_header(md: &mut String, underline: &str, title: &str) {
     md.push('\n');
 }
 
+/// Creates spoiler tag in Markdown (GFM)
 pub(super) fn create_code_detail(md: &mut String, summary: &str, code: &str) {
     md.push_str("<details>\n");
     md.push_str(&format!("    <summary>{}</summary>\n", summary));
@@ -34,12 +39,14 @@ pub(super) fn create_code_detail(md: &mut String, summary: &str, code: &str) {
     md.push('\n');
 }
 
+/// Appends a number of spaces before each newline
 fn tabulate(input: &str, to_prepend: &str) -> String {
     let mut result = input.to_owned();
     result.insert_str(0, to_prepend); // insert at the beginning
     return result.replace('\n', &format!("\n{}", to_prepend)); // insert after each newline
 }
 
+/// Creates table in Markdown. Table is passed as a vector of rows, top-to-down, each row is a vector of cells, left-to-right.
 pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>, align_left_first_column: bool) {
     if rows.len() < 2 {
         // we need at least one header row and one value row
@@ -100,6 +107,7 @@ pub(super) fn create_md_table(md: &mut String, rows: Vec<Vec<Box<dyn Display>>>,
     }
 }
 
+/// Pads Markdown cell text so it looks aligned in the table. Not necessary but makes raw Markdown more readable.
 pub(super) fn pad_cell_text(content: &str, column_width: usize, align_center: bool) -> String {
     let mut result = String::new();
     if content.len() > 0 {
