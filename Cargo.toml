@@ -4,6 +4,13 @@ version = "0.1.0"
 authors = ["Oleg `Kanedias` Chernovskiy <kanedias@keemail.me>"]
 edition = "2018"
 
+description = "A simple binary to convert JUnit XML reports to Markdown format"
+repository = "https://gitlab.com/Kanedias/junit2md"
+readme = "README.md"
+keywords = ["junit", "markdown", "converter"]
+categories = ["development-tools", "parsing", "parser-implementations"]
+license = "GPL-3.0+"
+
 [dependencies]
 serde-xml-rs = "0.3.1"
 serde = "1.0"
